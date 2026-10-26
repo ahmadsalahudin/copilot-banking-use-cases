@@ -1,0 +1,50 @@
+# Isolated check: full data + functions already used in the passing diagnostic.
+# Expected: 7 internal rows, 9 bank rows; 8000000 and 14492500 cents.
+# No loops, aliases, filtering, currency formats, or self-referencing assignments.
+kind: AdaptiveDialog
+modelDescription: Checks the 16 synthetic treasury records and basic table calculations only.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Treasury data check
+    triggerQueries:
+      - treasury data check
+  actions:
+    - kind: SetVariable
+      id: loadInternalLedger
+      variable: init:Topic.InternalLedger
+      value: |-
+        =Table(
+          {RowId:"L001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
+          {RowId:"L002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
+          {RowId:"L003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
+          {RowId:"L004", Ref:"TRF1004", Cents:-1000000, ValueDate:"2026-10-20"},
+          {RowId:"L005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-20"},
+          {RowId:"L006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+          {RowId:"L007", Ref:"TRF1007", Cents:-1500000, ValueDate:"2026-10-20"}
+        )
+    - kind: SetVariable
+      id: loadBankStatement
+      variable: init:Topic.BankStatement
+      value: |-
+        =Table(
+          {RowId:"B001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
+          {RowId:"B002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
+          {RowId:"B003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
+          {RowId:"B004", Ref:"TRF1004", Cents:-1002500, ValueDate:"2026-10-20"},
+          {RowId:"B005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-21"},
+          {RowId:"B006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+          {RowId:"B007", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+          {RowId:"B008", Ref:"FEE1020", Cents:-5000, ValueDate:"2026-10-20"},
+          {RowId:"B009", Ref:"TRF1008", Cents:3000000, ValueDate:"2026-10-20"}
+        )
+    - kind: SetVariable
+      id: calculateDataCheck
+      variable: init:Topic.DataCheckSummary
+      value: ="Internal rows " & Text(CountRows(Topic.InternalLedger)) & "; Bank rows " & Text(CountRows(Topic.BankStatement)) & "; Internal cents " & Text(Sum(Topic.InternalLedger, Cents)) & "; Bank cents " & Text(Sum(Topic.BankStatement, Cents))
+    - kind: SendActivity
+      id: showDataCheck
+      activity: '{Topic.DataCheckSummary}'
+inputType: {}
+outputType: {}
