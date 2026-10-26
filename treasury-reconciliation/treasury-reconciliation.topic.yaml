@@ -3,7 +3,8 @@
 # Data: fictional, single USD account NOSTRO_USD_001.
 # Scope: all supplied movements, including the next-day bank entry.
 # No file upload, connector, prompt tool, or Code interpreter is required.
-# YAML structure checked locally; Studio import and execution NOT YET TESTED.
+# Revision 2: initialize all five local variables using init:Topic.Name.
+# YAML/declaration checks pass locally; Studio import/runtime NOT YET TESTED.
 # Keep this annotated file: the designer may rewrite YAML/remove comments.
 kind: AdaptiveDialog
 modelDescription: Runs a synthetic USD nostro treasury reconciliation demo, comparing internal ledger movements with correspondent statement records and reporting matches and exceptions.
@@ -32,7 +33,7 @@ beginDialog:
     # The '|-' block preserves the expression's line breaks.
     - kind: SetVariable
       id: loadInternalLedger
-      variable: Topic.InternalLedger
+      variable: init:Topic.InternalLedger
       value: |-
         =Table(
           {RowId:"L001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
@@ -50,7 +51,7 @@ beginDialog:
     # B008 is a service charge; B009 is an unmatched incoming remittance.
     - kind: SetVariable
       id: loadBankStatement
-      variable: Topic.BankStatement
+      variable: init:Topic.BankStatement
       value: |-
         =Table(
           {RowId:"B001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
@@ -74,7 +75,7 @@ beginDialog:
     # This is NOT a split-settlement or many-to-many matching algorithm.
     - kind: SetVariable
       id: compareLedger
-      variable: Topic.Reconciliation
+      variable: init:Topic.Reconciliation
       value: |-
         =ForAll(
           Topic.InternalLedger As ledger,
@@ -107,7 +108,7 @@ beginDialog:
     # This separate pass ensures bank-only items appear in the report.
     - kind: SetVariable
       id: findBankOnly
-      variable: Topic.BankOnly
+      variable: init:Topic.BankOnly
       value: |-
         =Filter(
           Topic.BankStatement As bank,
@@ -121,7 +122,7 @@ beginDialog:
     # No language model is asked to perform the arithmetic.
     - kind: SetVariable
       id: buildReport
-      variable: Topic.Report
+      variable: init:Topic.Report
       value: |-
         ="USD NOSTRO RECONCILIATION - SYNTHETIC DEMO" & Char(10) &
         "Account: NOSTRO_USD_001 | All supplied records: 20-21 October 2026" & Char(10) & Char(10) &
@@ -161,7 +162,8 @@ beginDialog:
       activity: "{Topic.Report}"
 
 # This topic has no external input/output contract.
-# All variables above are local Topic variables inferred from assignments.
+# First assignments declare local variables with init:Topic.Name.
+# Expressions still READ them as Topic.Name (never init:Topic.Name).
 inputType: {}
 outputType: {}
 
