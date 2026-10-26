@@ -1,0 +1,7 @@
+Reconcile the attached synthetic treasury dataset.
+INTERNAL is our treasury ledger; BANK is our correspondent statement.
+Compare all supplied records. This is a supplied-record comparison, not an end-of-day balance reconciliation.
+Use code interpreter and apply your reconciliation rules.
+Report calculated totals, BANK-minus-INTERNAL difference, exact matches and exceptions.
+Keep duplicate groups together; do not choose one duplicate arbitrarily.
+Confirm all 16 input rows are accounted for.
