@@ -1,179 +1,183 @@
-# Paste this entire file into ONE blank Topic's code editor.
-# This is topic YAML, not a full agent/solution import.
-# Data: fictional, single USD account NOSTRO_USD_001.
-# Scope: all supplied movements, including the next-day bank entry.
-# No file upload, connector, prompt tool, or Code interpreter is required.
-# Revision 2: initialize all five local variables using init:Topic.Name.
-# YAML/declaration checks pass locally; Studio import/runtime NOT YET TESTED.
-# Keep this annotated file: the designer may rewrite YAML/remove comments.
+# REVISION 3 - compatibility rewrite, runtime not yet verified in Studio.
+# Paste this complete file into a NEW blank Topic to isolate stale variables.
+# Turn off the older reconciliation Topic while testing to avoid route ambiguity.
+# Data is embedded: no uploads, connectors, prompts, or Code interpreter.
+# Uses Microsoft's documented Foreach items/value/index/actions structure.
+# Removes nested ForAll/With/As record expressions. This is a compatibility
+# hypothesis, not a confirmed diagnosis of the previous 31 errors.
+# First assignments use init:Topic.Name; reads and later writes use Topic.Name.
+# Keep integer cents until formatting. Both sources use the same sign convention.
+# Scope: one USD nostro account; compare ALL supplied movements across both dates.
+# For broader datasets add account/currency keys and reference normalization.
+# Ref reuse / split settlements need a separate design: this fixture has unique
+# internal references. Multiple bank candidates are left unresolved for review.
+# Expected baseline difference: 64925.00. Studio import/runtime: NOT TESTED HERE.
+# Reference: https://learn.microsoft.com/en-us/microsoft-copilot-studio/voice-generative-answers
+# Reference: https://github.com/microsoft/skills-for-copilot-studio/blob/main/skills/int-reference/SKILL.md
 kind: AdaptiveDialog
-modelDescription: Runs a synthetic USD nostro treasury reconciliation demo, comparing internal ledger movements with correspondent statement records and reporting matches and exceptions.
+modelDescription: Runs a synthetic USD nostro treasury reconciliation demo, comparing internal ledger movements with correspondent statement
+  records and reporting matches and exceptions.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
   intent:
     displayName: Run treasury reconciliation
-    # Phrases support classic orchestration. The modelDescription above
-    # describes routing intent when generative orchestration is enabled.
     triggerQueries:
-      - run treasury reconciliation
-      - reconcile treasury records
-      - start reconciliation demo
+    - run treasury reconciliation
+    - reconcile treasury records
+    - start reconciliation demo
   actions:
-    # NODE 1: Tell the user what will happen. No transactions are posted.
-    - kind: SendActivity
-      id: explainScope
-      activity: I will compare synthetic USD nostro records for account NOSTRO_USD_001. This compares all supplied movements dated 20-21 October 2026, not an end-of-day closing balance. No adjustments or payments will be executed.
-
-    # NODE 2: Create a typed table of internal records.
-    # Cents are whole integers: 10000000 cents = USD 100,000.00.
-    # Positive increases our nostro asset; negative decreases it.
-    # Both sources use the SAME normalized sign convention.
-    # In YAML, Power Fx expressions DO start with '='.
-    # The '|-' block preserves the expression's line breaks.
+  - kind: SendActivity
+    id: explainScope
+    activity: I will compare synthetic USD nostro records for account NOSTRO_USD_001. This compares all supplied movements dated 20-21
+      October 2026, not an end-of-day closing balance. No adjustments or payments will be executed.
+  # INTERNAL DATA: 7 rows. Positive amounts increase the nostro asset.
+  - kind: SetVariable
+    id: loadInternalLedger
+    variable: init:Topic.InternalLedger
+    value: |-
+      =Table(
+        {RowId:"L001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
+        {RowId:"L002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
+        {RowId:"L003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
+        {RowId:"L004", Ref:"TRF1004", Cents:-1000000, ValueDate:"2026-10-20"},
+        {RowId:"L005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-20"},
+        {RowId:"L006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+        {RowId:"L007", Ref:"TRF1007", Cents:-1500000, ValueDate:"2026-10-20"}
+      )
+  # BANK DATA: 9 rows, including mismatched/date-shifted/duplicate candidates.
+  - kind: SetVariable
+    id: loadBankStatement
+    variable: init:Topic.BankStatement
+    value: |-
+      =Table(
+        {RowId:"B001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
+        {RowId:"B002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
+        {RowId:"B003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
+        {RowId:"B004", Ref:"TRF1004", Cents:-1002500, ValueDate:"2026-10-20"},
+        {RowId:"B005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-21"},
+        {RowId:"B006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+        {RowId:"B007", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
+        {RowId:"B008", Ref:"FEE1020", Cents:-5000, ValueDate:"2026-10-20"},
+        {RowId:"B009", Ref:"TRF1008", Cents:3000000, ValueDate:"2026-10-20"}
+      )
+  # BUILD HEADER: counts and totals use the same basic functions as the passing diagnostic.
+  - kind: SetVariable
+    id: initializeReport
+    variable: init:Topic.Report
+    value: |-
+      ="USD NOSTRO RECONCILIATION - SYNTHETIC DEMO" & Char(10) &
+      "Account: NOSTRO_USD_001 | All supplied records: 20-21 October 2026" & Char(10) &
+      "Internal rows: " & Text(CountRows(Topic.InternalLedger)) & Char(10) &
+      "Bank rows: " & Text(CountRows(Topic.BankStatement)) & Char(10) &
+      "Internal movement: USD " & Text(Sum(Topic.InternalLedger, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
+      "Bank movement: USD " & Text(Sum(Topic.BankStatement, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
+      "Bank minus internal: USD " & Text((Sum(Topic.BankStatement, Cents) - Sum(Topic.InternalLedger, Cents)) / 100, "[$-en-US]#,##0.00") & Char(10) & Char(10) &
+      "LEDGER COMPARISON" & Char(10)
+  # DECLARE TYPED TABLE: an empty filter preserves the bank table schema.
+  - kind: SetVariable
+    id: initializeCandidates
+    variable: init:Topic.Candidates
+    value: =Filter(Topic.BankStatement, false)
+  # DECLARE TEXT: overwritten for each internal row.
+  - kind: SetVariable
+    id: initializeStatus
+    variable: init:Topic.Status
+    value: =""
+  # DECLARE COUNTER: independent scan count, not a proof of one-to-one matching.
+  - kind: SetVariable
+    id: initializeAccounted
+    variable: init:Topic.BankRowsAccounted
+    value: =0
+  # FIRST LOOP: CurrentLedger is an explicit Topic record; no As alias or With scope.
+  - kind: Foreach
+    id: loopInternalLedger
+    items: =Topic.InternalLedger
+    value: init:Topic.CurrentLedger
+    index: init:Topic.LedgerIndex
+    actions:
+    # SINGLE RECORD SCOPE: Ref is the bank column; CurrentLedger is explicitly qualified.
     - kind: SetVariable
-      id: loadInternalLedger
-      variable: init:Topic.InternalLedger
+      id: findCurrentCandidates
+      variable: Topic.Candidates
+      value: =Filter(Topic.BankStatement, Ref = Topic.CurrentLedger.Ref)
+    # PRIORITY: ambiguity, missing, multiple candidates, amount, date, exact.
+    - kind: SetVariable
+      id: classifyCurrentLedger
+      variable: Topic.Status
       value: |-
-        =Table(
-          {RowId:"L001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
-          {RowId:"L002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
-          {RowId:"L003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
-          {RowId:"L004", Ref:"TRF1004", Cents:-1000000, ValueDate:"2026-10-20"},
-          {RowId:"L005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-20"},
-          {RowId:"L006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
-          {RowId:"L007", Ref:"TRF1007", Cents:-1500000, ValueDate:"2026-10-20"}
+        =If(
+          CountRows(Filter(Topic.InternalLedger, Ref = Topic.CurrentLedger.Ref)) > 1,
+          "AMBIGUOUS INTERNAL REFERENCE",
+          CountRows(Topic.Candidates) = 0,
+          "INTERNAL ONLY",
+          CountRows(Topic.Candidates) > 1,
+          "SUSPECTED DUPLICATE / MULTIPLE BANK ENTRIES",
+          First(Topic.Candidates).Cents <> Topic.CurrentLedger.Cents,
+          "AMOUNT MISMATCH",
+          First(Topic.Candidates).ValueDate <> Topic.CurrentLedger.ValueDate,
+          "VALUE-DATE DIFFERENCE",
+          "EXACT MATCH"
         )
-
-    # NODE 3: Create the bank table.
-    # B004 differs by USD 25; B005 has a different value date.
-    # B006/B007 are identical candidates: investigate, do not choose one.
-    # B008 is a service charge; B009 is an unmatched incoming remittance.
+    # APPEND DETAILS: update initialized report text; Concat has one record scope.
     - kind: SetVariable
-      id: loadBankStatement
-      variable: init:Topic.BankStatement
+      id: appendCurrentLedger
+      variable: Topic.Report
       value: |-
-        =Table(
-          {RowId:"B001", Ref:"TRF1001", Cents:10000000, ValueDate:"2026-10-20"},
-          {RowId:"B002", Ref:"TRF1002", Cents:-2500000, ValueDate:"2026-10-20"},
-          {RowId:"B003", Ref:"TRF1003", Cents:5000000, ValueDate:"2026-10-20"},
-          {RowId:"B004", Ref:"TRF1004", Cents:-1002500, ValueDate:"2026-10-20"},
-          {RowId:"B005", Ref:"TRF1005", Cents:-4000000, ValueDate:"2026-10-21"},
-          {RowId:"B006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
-          {RowId:"B007", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
-          {RowId:"B008", Ref:"FEE1020", Cents:-5000, ValueDate:"2026-10-20"},
-          {RowId:"B009", Ref:"TRF1008", Cents:3000000, ValueDate:"2026-10-20"}
-        )
-
-    # NODE 4: Derive one comparison record per internal row.
-    # Explicit 'As' aliases prevent nested record scopes being confused.
-    # With() names the bank candidates and the internal reference count.
-    # If() checks ambiguity BEFORE inspecting First(candidates).
-    # Multiple candidates remain unresolved, never arbitrarily matched.
-    # Ref-only candidate lookup is appropriate ONLY for this one-account,
-    # one-currency fixture. Add account/currency keys for broader datasets.
-    # This is NOT a split-settlement or many-to-many matching algorithm.
+        =Topic.Report & Char(10) &
+        Topic.CurrentLedger.RowId & " / " &
+        If(CountRows(Topic.Candidates) = 0, "no bank entry", Concat(Topic.Candidates, RowId, ", ")) &
+        " | " & Topic.CurrentLedger.Ref & " | " & Topic.Status & Char(10) &
+        "Internal USD " & Text(Topic.CurrentLedger.Cents / 100, "[$-en-US]#,##0.00") &
+        " on " & Topic.CurrentLedger.ValueDate &
+        "; bank USD " & If(CountRows(Topic.Candidates) = 0, "none", Concat(Topic.Candidates, Text(Cents / 100, "[$-en-US]#,##0.00"), ", ")) &
+        " on " & If(CountRows(Topic.Candidates) = 0, "none", Concat(Topic.Candidates, ValueDate, ", ")) & Char(10)
+  - kind: SetVariable
+    id: appendBankHeading
+    variable: Topic.Report
+    value: =Topic.Report & Char(10) & "BANK-ONLY ENTRIES" & Char(10)
+  # SECOND LOOP: scan every bank record and list those with no internal reference.
+  - kind: Foreach
+    id: loopBankStatement
+    items: =Topic.BankStatement
+    value: init:Topic.CurrentBank
+    index: init:Topic.BankIndex
+    actions:
     - kind: SetVariable
-      id: compareLedger
-      variable: init:Topic.Reconciliation
-      value: |-
-        =ForAll(
-          Topic.InternalLedger As ledger,
-          With(
-            {
-              candidates: Filter(Topic.BankStatement As bank, bank.Ref = ledger.Ref),
-              ledgerRefCount: CountRows(Filter(Topic.InternalLedger As other, other.Ref = ledger.Ref))
-            },
-            {
-              InternalId: ledger.RowId,
-              Reference: ledger.Ref,
-              InternalCents: ledger.Cents,
-              InternalDate: ledger.ValueDate,
-              BankIds: Concat(candidates, RowId, ", "),
-              BankAmounts: Concat(candidates, Text(Cents / 100, "[$-en-US]#,##0.00"), ", "),
-              BankDates: Concat(candidates, ValueDate, ", "),
-              Status: If(
-                ledgerRefCount > 1, "AMBIGUOUS INTERNAL REFERENCE",
-                CountRows(candidates) = 0, "INTERNAL ONLY",
-                CountRows(candidates) > 1, "SUSPECTED DUPLICATE / MULTIPLE BANK ENTRIES",
-                First(candidates).Cents <> ledger.Cents, "AMOUNT MISMATCH",
-                First(candidates).ValueDate <> ledger.ValueDate, "VALUE-DATE DIFFERENCE",
-                "EXACT MATCH"
-              )
-            }
-          )
-        )
-
-    # NODE 5: Find bank records whose reference is absent internally.
-    # This separate pass ensures bank-only items appear in the report.
-    - kind: SetVariable
-      id: findBankOnly
-      variable: init:Topic.BankOnly
-      value: |-
-        =Filter(
-          Topic.BankStatement As bank,
-          CountRows(Filter(Topic.InternalLedger As ledger, ledger.Ref = bank.Ref)) = 0
-        )
-
-    # NODE 6: Build a string from the computed tables.
-    # Sum() adds integer cents; divide by 100 only for display.
-    # BANK minus INTERNAL is the explicitly defined difference direction.
-    # Concat() renders each record; Char(10) inserts a line break.
-    # No language model is asked to perform the arithmetic.
-    - kind: SetVariable
-      id: buildReport
-      variable: init:Topic.Report
-      value: |-
-        ="USD NOSTRO RECONCILIATION - SYNTHETIC DEMO" & Char(10) &
-        "Account: NOSTRO_USD_001 | All supplied records: 20-21 October 2026" & Char(10) & Char(10) &
-        "Internal rows: " & Text(CountRows(Topic.InternalLedger)) & Char(10) &
-        "Bank rows: " & Text(CountRows(Topic.BankStatement)) & Char(10) &
-        "Internal movement: USD " & Text(Sum(Topic.InternalLedger, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
-        "Bank movement: USD " & Text(Sum(Topic.BankStatement, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
-        "Bank minus internal: USD " & Text((Sum(Topic.BankStatement, Cents) - Sum(Topic.InternalLedger, Cents)) / 100, "[$-en-US]#,##0.00") & Char(10) & Char(10) &
-        "LEDGER COMPARISON" & Char(10) &
-        Concat(
-          Topic.Reconciliation,
-          InternalId & " / " & If(IsBlank(BankIds), "no bank entry", BankIds) &
-          " | " & Reference & " | " & Status & Char(10) &
-          "Internal USD " & Text(InternalCents / 100, "[$-en-US]#,##0.00") & " on " & InternalDate &
-          "; bank USD " & If(IsBlank(BankAmounts), "none", BankAmounts) &
-          " on " & If(IsBlank(BankDates), "none", BankDates),
-          Char(10) & Char(10)
-        ) & Char(10) & Char(10) &
-        "BANK-ONLY ENTRIES" & Char(10) &
-        Concat(
-          Topic.BankOnly,
-          RowId & " | " & Ref & " | USD " & Text(Cents / 100, "[$-en-US]#,##0.00") & " | " & ValueDate,
-          Char(10)
-        ) & Char(10) & Char(10) &
-        "REVIEW NOTES" & Char(10) &
-        "Investigate amount differences; do not assume a fee." & Char(10) &
-        "Check settlement evidence for value-date differences." & Char(10) &
-        "Investigate repeated bank entries before selecting a match." & Char(10) &
-        "Investigate all internal-only and bank-only records." & Char(10) &
-        "No opening balance supplied; no closing balance calculated." & Char(10) &
-        "No journal entries or payments executed."
-
-    # NODE 7: Interpolate the computed report into a normal message.
-    # Quotation marks here belong to YAML; braces reference the variable.
-    - kind: SendActivity
-      id: showReport
-      activity: "{Topic.Report}"
-
-# This topic has no external input/output contract.
-# First assignments declare local variables with init:Topic.Name.
-# Expressions still READ them as Topic.Name (never init:Topic.Name).
+      id: countBankRow
+      variable: Topic.BankRowsAccounted
+      value: =Topic.BankRowsAccounted + 1
+    # CONDITION: only append bank-only entries, not records already represented above.
+    - kind: ConditionGroup
+      id: checkBankOnly
+      conditions:
+      - id: noLedgerReference
+        condition: =CountRows(Filter(Topic.InternalLedger, Ref = Topic.CurrentBank.Ref)) = 0
+        actions:
+        - kind: SetVariable
+          id: appendBankOnly
+          variable: Topic.Report
+          value: |-
+            =Topic.Report & Topic.CurrentBank.RowId & " | " & Topic.CurrentBank.Ref &
+            " | USD " & Text(Topic.CurrentBank.Cents / 100, "[$-en-US]#,##0.00") &
+            " | " & Topic.CurrentBank.ValueDate & Char(10)
+  # FINAL NOTES: findings require human investigation; no balances or postings.
+  - kind: SetVariable
+    id: appendReviewNotes
+    variable: Topic.Report
+    value: |-
+      =Topic.Report & Char(10) &
+      "Bank rows scanned: " & Text(Topic.BankRowsAccounted) & Char(10) &
+      "REVIEW NOTES" & Char(10) &
+      "Investigate amount differences; the USD 25 cause is unverified." & Char(10) &
+      "Confirm settlement evidence for value-date differences." & Char(10) &
+      "Investigate multiple bank candidates; do not pick an arbitrary match." & Char(10) &
+      "Investigate internal-only and bank-only entries." & Char(10) &
+      "No opening balance supplied; no closing balance calculated." & Char(10) &
+      "No journal entries or payments executed."
+  # OUTPUT: send the computed report using ordinary variable interpolation.
+  - kind: SendActivity
+    id: showReport
+    activity: '{Topic.Report}'
 inputType: {}
 outputType: {}
-
-# EXPECTED BASELINE (for verification, not displayed as a canned answer):
-# Internal: 7 rows, USD 80,000.00; Bank: 9 rows, USD 144,925.00.
-# Difference: USD 64,925.00.
-# Exact: L001/B001, L002/B002, L003/B003.
-# Amount: L004/B004. Date: L005/B005.
-# Ambiguous bank candidates: L006/B006/B007.
-# Internal only: L007. Bank only: B008, B009.
-# Mutation test: change B004 Cents to -1000000.
-# Then L004/B004 becomes exact; difference rises to USD 64,950.00.
-# Restore B004 to -1002500 after testing.
