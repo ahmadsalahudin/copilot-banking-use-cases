@@ -1,0 +1,37 @@
+# Diagnostic only: paste into a separate blank Topic.
+# Test message: treasury formula check
+# Expected result: Rows 2; Net cents 7500; IDs TEST1, TEST2.
+# If this fails, capture the FIRST error and highlighted identifier.
+# This isolates local variable declarations and basic table expressions.
+kind: AdaptiveDialog
+modelDescription: Runs a basic treasury Power Fx variable and table diagnostic.
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    displayName: Treasury formula check
+    triggerQueries:
+      - treasury formula check
+  actions:
+    # First assignment must DECLARE the variable.
+    - kind: SetVariable
+      id: initializeRows
+      variable: init:Topic.TestRows
+      value: |-
+        =Table(
+          {RowId:"TEST1", Cents:10000},
+          {RowId:"TEST2", Cents:-2500}
+        )
+    # Formula references omit the init: declaration prefix.
+    - kind: SetVariable
+      id: initializeSummary
+      variable: init:Topic.TestSummary
+      value: |-
+        ="Rows " & Text(CountRows(Topic.TestRows)) &
+        "; Net cents " & Text(Sum(Topic.TestRows, Cents)) &
+        "; IDs " & Concat(Topic.TestRows, RowId, ", ")
+    - kind: SendActivity
+      id: showSummary
+      activity: "{Topic.TestSummary}"
+inputType: {}
+outputType: {}
