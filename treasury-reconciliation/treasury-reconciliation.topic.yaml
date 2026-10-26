@@ -1,37 +1,30 @@
-# REVISION 4 - explicitly indented YAML sequences, runtime not yet verified in Studio.
-# Paste this complete file into a NEW blank Topic to isolate stale variables.
-# Turn off the older reconciliation Topic while testing to avoid route ambiguity.
-# Data is embedded: no uploads, connectors, prompts, or Code interpreter.
-# Uses Microsoft's documented Foreach items/value/index/actions structure.
-# Removes nested ForAll/With/As record expressions. This is a compatibility
-# hypothesis, not a confirmed diagnosis of the previous 31 errors.
-# First assignments use init:Topic.Name; reads and later writes use Topic.Name.
-# Keep integer cents until formatting. Both sources use the same sign convention.
-# Scope: one USD nostro account; compare ALL supplied movements across both dates.
-# For broader datasets add account/currency keys and reference normalization.
-# Ref reuse / split settlements need a separate design: this fixture has unique
-# internal references. Multiple bank candidates are left unresolved for review.
-# Expected baseline difference: 64925.00. Studio import/runtime: NOT TESTED HERE.
-# Reference: https://learn.microsoft.com/en-us/microsoft-copilot-studio/voice-generative-answers
-# Reference: https://github.com/microsoft/skills-for-copilot-studio/blob/main/skills/int-reference/SKILL.md
-# Serialization fix: list items are indented below their parent key.
-# Long plain text scalars stay on one line; formulas use literal blocks.
+# REVISION 5 - streamed results, without mutable report accumulation.
+# Full-data diagnostic: USER CONFIRMED PASS. Matching/loop runtime: not yet tested.
+# Paste into a new blank Topic; turn off earlier reconciliation Topics for testing.
+# The two data tables are identical to the passing full-data diagnostic.
+# No With(), As aliases, ForAll(), custom numeric formats, or self-assignment.
+# Each first assignment uses init:Topic; reads use Topic without init:.
+# Foreach syntax follows Microsoft's voice-generative-answers YAML example.
+# https://learn.microsoft.com/en-us/microsoft-copilot-studio/voice-generative-answers
+# Amounts use integer cents; divide by 100 for display. Decimal padding is omitted.
+# Scope: one USD account NOSTRO_USD_001, all supplied dates; movements, not balances.
+# All internal references are unique in this fixture. Multiple bank candidates
+# are unresolved review groups; this is not a split-settlement matching engine.
+# Output: totals first, then 7 ledger messages, bank-only messages, review notes.
+# Expected: USD 80000 internal, 144925 bank, 64925 difference; B008/B009 bank only.
 kind: AdaptiveDialog
-modelDescription: Runs a synthetic USD nostro treasury reconciliation demo, comparing internal ledger movements with correspondent statement records and reporting matches and exceptions.
+modelDescription: Runs the synthetic treasury reconciliation demo, showing calculated totals, each ledger comparison, and bank-only entries.
 beginDialog:
   kind: OnRecognizedIntent
   id: main
   intent:
-    displayName: Run treasury reconciliation
+    displayName: Treasury reconciliation V5
     triggerQueries:
       - run treasury reconciliation
       - reconcile treasury records
       - start reconciliation demo
   actions:
-    - kind: SendActivity
-      id: explainScope
-      activity: I will compare synthetic USD nostro records for account NOSTRO_USD_001. This compares all supplied movements dated 20-21 October 2026, not an end-of-day closing balance. No adjustments or payments will be executed.
-    # INTERNAL DATA: 7 rows. Positive amounts increase the nostro asset.
+    # DATA: 7 internal records, preserved from the passing diagnostic.
     - kind: SetVariable
       id: loadInternalLedger
       variable: init:Topic.InternalLedger
@@ -45,7 +38,7 @@ beginDialog:
           {RowId:"L006", Ref:"TRF1006", Cents:2000000, ValueDate:"2026-10-20"},
           {RowId:"L007", Ref:"TRF1007", Cents:-1500000, ValueDate:"2026-10-20"}
         )
-    # BANK DATA: 9 rows, including mismatched/date-shifted/duplicate candidates.
+    # DATA: 9 bank records, preserved from the passing diagnostic.
     - kind: SetVariable
       id: loadBankStatement
       variable: init:Topic.BankStatement
@@ -61,123 +54,105 @@ beginDialog:
           {RowId:"B008", Ref:"FEE1020", Cents:-5000, ValueDate:"2026-10-20"},
           {RowId:"B009", Ref:"TRF1008", Cents:3000000, ValueDate:"2026-10-20"}
         )
-    # BUILD HEADER: counts and totals use the same basic functions as the passing diagnostic.
+    # TOTALS: reuse the passing CountRows/Sum/Text pattern; no custom money format.
     - kind: SetVariable
-      id: initializeReport
-      variable: init:Topic.Report
+      id: computeSummaryV5
+      variable: init:Topic.SummaryV5
       value: |-
         ="USD NOSTRO RECONCILIATION - SYNTHETIC DEMO" & Char(10) &
-        "Account: NOSTRO_USD_001 | All supplied records: 20-21 October 2026" & Char(10) &
-        "Internal rows: " & Text(CountRows(Topic.InternalLedger)) & Char(10) &
-        "Bank rows: " & Text(CountRows(Topic.BankStatement)) & Char(10) &
-        "Internal movement: USD " & Text(Sum(Topic.InternalLedger, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
-        "Bank movement: USD " & Text(Sum(Topic.BankStatement, Cents) / 100, "[$-en-US]#,##0.00") & Char(10) &
-        "Bank minus internal: USD " & Text((Sum(Topic.BankStatement, Cents) - Sum(Topic.InternalLedger, Cents)) / 100, "[$-en-US]#,##0.00") & Char(10) & Char(10) &
-        "LEDGER COMPARISON" & Char(10)
-    # DECLARE TYPED TABLE: an empty filter preserves the bank table schema.
-    - kind: SetVariable
-      id: initializeCandidates
-      variable: init:Topic.Candidates
-      value: =Filter(Topic.BankStatement, false)
-    # DECLARE TEXT: overwritten for each internal row.
-    - kind: SetVariable
-      id: initializeStatus
-      variable: init:Topic.Status
-      value: =""
-    # DECLARE COUNTER: independent scan count, not a proof of one-to-one matching.
-    - kind: SetVariable
-      id: initializeAccounted
-      variable: init:Topic.BankRowsAccounted
-      value: =0
-    # FIRST LOOP: CurrentLedger is an explicit Topic record; no As alias or With scope.
+        "Account NOSTRO_USD_001; all supplied movements dated 20-21 October 2026." & Char(10) &
+        "Internal rows: " & Text(CountRows(Topic.InternalLedger)) &
+        "; Bank rows: " & Text(CountRows(Topic.BankStatement)) & Char(10) &
+        "Internal USD: " & Text(Sum(Topic.InternalLedger, Cents) / 100) &
+        "; Bank USD: " & Text(Sum(Topic.BankStatement, Cents) / 100) & Char(10) &
+        "Bank minus internal USD: " & Text((Sum(Topic.BankStatement, Cents) - Sum(Topic.InternalLedger, Cents)) / 100)
+    - kind: SendActivity
+      id: sendSummaryV5
+      activity: '{Topic.SummaryV5}'
+    # LOOP: the current ledger row is a typed Topic record, not a formula alias.
     - kind: Foreach
-      id: loopInternalLedger
+      id: compareEachLedgerV5
       items: =Topic.InternalLedger
-      value: init:Topic.CurrentLedger
-      index: init:Topic.LedgerIndex
+      value: init:Topic.LedgerRowV5
+      index: init:Topic.LedgerIndexV5
       actions:
-        # SINGLE RECORD SCOPE: Ref is the bank column; CurrentLedger is explicitly qualified.
+        # FILTER: one table scope. Ref is its column; the compared value is explicitly qualified.
         - kind: SetVariable
-          id: findCurrentCandidates
-          variable: Topic.Candidates
-          value: =Filter(Topic.BankStatement, Ref = Topic.CurrentLedger.Ref)
-        # PRIORITY: ambiguity, missing, multiple candidates, amount, date, exact.
+          id: findCandidatesV5
+          variable: init:Topic.CandidatesV5
+          value: =Filter(Topic.BankStatement, Ref = Topic.LedgerRowV5.Ref)
+        # RULES: ambiguity/missing/multiple are checked before amount and date.
         - kind: SetVariable
-          id: classifyCurrentLedger
-          variable: Topic.Status
+          id: classifyV5
+          variable: init:Topic.MatchStatusV5
           value: |-
             =If(
-              CountRows(Filter(Topic.InternalLedger, Ref = Topic.CurrentLedger.Ref)) > 1,
+              CountRows(Filter(Topic.InternalLedger, Ref = Topic.LedgerRowV5.Ref)) > 1,
               "AMBIGUOUS INTERNAL REFERENCE",
-              CountRows(Topic.Candidates) = 0,
+              CountRows(Topic.CandidatesV5) = 0,
               "INTERNAL ONLY",
-              CountRows(Topic.Candidates) > 1,
+              CountRows(Topic.CandidatesV5) > 1,
               "SUSPECTED DUPLICATE / MULTIPLE BANK ENTRIES",
-              First(Topic.Candidates).Cents <> Topic.CurrentLedger.Cents,
+              First(Topic.CandidatesV5).Cents <> Topic.LedgerRowV5.Cents,
               "AMOUNT MISMATCH",
-              First(Topic.Candidates).ValueDate <> Topic.CurrentLedger.ValueDate,
+              First(Topic.CandidatesV5).ValueDate <> Topic.LedgerRowV5.ValueDate,
               "VALUE-DATE DIFFERENCE",
               "EXACT MATCH"
             )
-        # APPEND DETAILS: update initialized report text; Concat has one record scope.
+        # DETAILS: display all candidates, never choose a duplicate arbitrarily.
         - kind: SetVariable
-          id: appendCurrentLedger
-          variable: Topic.Report
+          id: formatCandidateDetailsV5
+          variable: init:Topic.BankDetailsV5
           value: |-
-            =Topic.Report & Char(10) &
-            Topic.CurrentLedger.RowId & " / " &
-            If(CountRows(Topic.Candidates) = 0, "no bank entry", Concat(Topic.Candidates, RowId, ", ")) &
-            " | " & Topic.CurrentLedger.Ref & " | " & Topic.Status & Char(10) &
-            "Internal USD " & Text(Topic.CurrentLedger.Cents / 100, "[$-en-US]#,##0.00") &
-            " on " & Topic.CurrentLedger.ValueDate &
-            "; bank USD " & If(CountRows(Topic.Candidates) = 0, "none", Concat(Topic.Candidates, Text(Cents / 100, "[$-en-US]#,##0.00"), ", ")) &
-            " on " & If(CountRows(Topic.Candidates) = 0, "none", Concat(Topic.Candidates, ValueDate, ", ")) & Char(10)
-    - kind: SetVariable
-      id: appendBankHeading
-      variable: Topic.Report
-      value: =Topic.Report & Char(10) & "BANK-ONLY ENTRIES" & Char(10)
-    # SECOND LOOP: scan every bank record and list those with no internal reference.
-    - kind: Foreach
-      id: loopBankStatement
-      items: =Topic.BankStatement
-      value: init:Topic.CurrentBank
-      index: init:Topic.BankIndex
-      actions:
+            =If(
+              CountRows(Topic.CandidatesV5) = 0,
+              "No bank entry",
+              Concat(Topic.CandidatesV5, RowId & " | USD " & Text(Cents / 100) & " | " & ValueDate, "; ")
+            )
         - kind: SetVariable
-          id: countBankRow
-          variable: Topic.BankRowsAccounted
-          value: =Topic.BankRowsAccounted + 1
-        # CONDITION: only append bank-only entries, not records already represented above.
+          id: formatLedgerAmountV5
+          variable: init:Topic.LedgerAmountV5
+          value: =Text(Topic.LedgerRowV5.Cents / 100)
+        # DISPLAY: send each result directly; never append to the same variable.
+        - kind: SendActivity
+          id: sendComparisonV5
+          activity: |-
+            {Topic.LedgerRowV5.RowId} | {Topic.LedgerRowV5.Ref} | {Topic.MatchStatusV5}
+            Internal: USD {Topic.LedgerAmountV5} | {Topic.LedgerRowV5.ValueDate}
+            Bank: {Topic.BankDetailsV5}
+    - kind: SendActivity
+      id: bankOnlyHeadingV5
+      activity: BANK-ONLY ENTRIES
+    # SECOND PASS: show every bank entry whose reference is absent internally.
+    - kind: Foreach
+      id: scanBankOnlyV5
+      items: =Topic.BankStatement
+      value: init:Topic.BankRowV5
+      index: init:Topic.BankIndexV5
+      actions:
         - kind: ConditionGroup
-          id: checkBankOnly
+          id: bankOnlyBranchV5
           conditions:
-            - id: noLedgerReference
-              condition: =CountRows(Filter(Topic.InternalLedger, Ref = Topic.CurrentBank.Ref)) = 0
+            - id: noInternalReferenceV5
+              condition: =CountRows(Filter(Topic.InternalLedger, Ref = Topic.BankRowV5.Ref)) = 0
               actions:
                 - kind: SetVariable
-                  id: appendBankOnly
-                  variable: Topic.Report
-                  value: |-
-                    =Topic.Report & Topic.CurrentBank.RowId & " | " & Topic.CurrentBank.Ref &
-                    " | USD " & Text(Topic.CurrentBank.Cents / 100, "[$-en-US]#,##0.00") &
-                    " | " & Topic.CurrentBank.ValueDate & Char(10)
-    # FINAL NOTES: findings require human investigation; no balances or postings.
-    - kind: SetVariable
-      id: appendReviewNotes
-      variable: Topic.Report
-      value: |-
-        =Topic.Report & Char(10) &
-        "Bank rows scanned: " & Text(Topic.BankRowsAccounted) & Char(10) &
-        "REVIEW NOTES" & Char(10) &
-        "Investigate amount differences; the USD 25 cause is unverified." & Char(10) &
-        "Confirm settlement evidence for value-date differences." & Char(10) &
-        "Investigate multiple bank candidates; do not pick an arbitrary match." & Char(10) &
-        "Investigate internal-only and bank-only entries." & Char(10) &
-        "No opening balance supplied; no closing balance calculated." & Char(10) &
-        "No journal entries or payments executed."
-    # OUTPUT: send the computed report using ordinary variable interpolation.
+                  id: formatBankOnlyAmountV5
+                  variable: init:Topic.BankOnlyAmountV5
+                  value: =Text(Topic.BankRowV5.Cents / 100)
+                - kind: SendActivity
+                  id: sendBankOnlyV5
+                  activity: '{Topic.BankRowV5.RowId} | {Topic.BankRowV5.Ref} | USD {Topic.BankOnlyAmountV5} | {Topic.BankRowV5.ValueDate}'
+    # LIMITS: findings are for human investigation; there is no writeback.
     - kind: SendActivity
-      id: showReport
-      activity: '{Topic.Report}'
+      id: reviewNotesV5
+      activity: |-
+        REVIEW REQUIRED
+        Investigate amount differences; the USD 25 cause is unverified.
+        Confirm settlement evidence for value-date differences.
+        Investigate repeated bank entries before choosing any match.
+        Investigate internal-only and bank-only entries.
+        No opening balance was supplied; no closing balance was calculated.
+        No adjustments or payments were executed.
 inputType: {}
 outputType: {}
